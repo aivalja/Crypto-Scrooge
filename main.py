@@ -10,10 +10,14 @@ def main():
     #    response_content = response.read()
     #response_content.decode('utf-8')
     #json_response = json.loads(response_content)
-
-    price_history = get_price_history("01/01/2020","01/08/2021", "bitcoin")
-    #print(price_history)
+    start_date = "01/01/2020"
+    end_date = "01/08/2021"
+    coin = "bitcoin"
+    price_history = get_price_history(start_date, end_date, coin)
+    price_history = parse_price_history(price_history, start_date, end_date)
     print(get_longest_bear(price_history))
+
+
 
 def get_longest_bear(price_history):
     previous_price = 0
@@ -36,8 +40,27 @@ def get_longest_bear(price_history):
     return([longest_bear_length, datetime.fromtimestamp(longest_bear_start/1000), datetime.fromtimestamp(longest_bear_end/1000)])
 
 def parse_price_history(data,start_date, end_date):
-    
-    pass
+    previous_value = data["prices"][0]
+    expected_timestamp = int(date_to_timestamp(start_date)*1000)
+    end_timestamp = int(date_to_timestamp(end_date)*1000)
+    # Parse response to inlcude only values closest to midnight utc
+    for k in data["prices"]:
+        # Timestamp is correct
+        if(k[0] == expected_timestamp):
+            prices[k[0]] = k[1]
+            expected_timestamp+=86400000
+        elif(k[0] > expected_timestamp):
+            # Current value was closer to midnight than previous
+            if(abs(k[0]-expected_timestamp)<abs(previous_value[0]-expected_timestamp)):
+                prices[k[0]] = k[1]
+            #Previous value was closer to midnight
+            else:
+                prices[previous_value[0]] = previous_value[1]
+            expected_timestamp+=86400000
+        if(end_timestamp < expected_timestamp):
+            break
+        previous_value = k
+    return prices
 
 def date_to_timestamp(date):
     dt = date.split("/")
@@ -51,24 +74,7 @@ def get_price_history(start_date, end_date, coin):
         response_content = response.read()
     response_content.decode('utf-8')
     json_response = json.loads(response_content)
-    previous_value = json_response["prices"][0]
-    expected_timestamp = int(date_to_timestamp(start_date)*1000)
-    # Parse response to inlcude only values closest to midnight utc
-    for k in json_response["prices"]:
-        # Timestamp is correct
-        if(k[0] == expected_timestamp):
-            prices[k[0]] = k[1]
-            expected_timestamp+=86400000
-        elif(k[0] > expected_timestamp):
-            # Current value was closer to midnight than previous
-            if(abs(k[0]-expected_timestamp)<abs(previous_value[0]-expected_timestamp)):
-                prices[k[0]] = k[1]
-            #Previous value was closer to midnight
-            else:
-                prices[previous_value[0]] = previous_value[1]
-            expected_timestamp+=86400000
-        previous_value = k
-    return prices
+    return json_response
 
 if __name__ == '__main__':
     main()
