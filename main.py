@@ -1,22 +1,34 @@
 from urllib.request import urlopen
 import json
+import argparse
 from pprint import pprint
 from datetime import datetime, timezone
 
 
 def main():
-    #with urlopen("https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY") as response:
-    #    response_content = response.read()
-    #response_content.decode('utf-8')
-    #json_response = json.loads(response_content)
-    start_date = "01/01/2020"
-    end_date = "01/08/2021"
+    parser = argparse.ArgumentParser()
+    parser.add_argument("start_date", help="Start date in format DD.MM.YY", type=lambda s: datetime.strptime(s, '%d.%m.%Y'))
+    parser.add_argument("end_date", help="End date in format DD.MM.YY", type=lambda s: datetime.strptime(s, '%d.%m.%Y'))
+    args = parser.parse_args()
+
+    start_date = args.start_date
+    end_date = args.end_date
+    if(start_date > end_date):
+        parser.error("start_date must be before end_date")
     coin = "bitcoin"
     coin_history = get_price_history(start_date, end_date, coin)
     price_history = parse_data_history(coin_history, start_date, end_date, "prices")
+    longest_bear = get_longest_bear(price_history)
     volume_history = parse_data_history(coin_history, start_date, end_date, "total_volumes")
-    print(get_longest_bear(price_history))
-    print(get_highest_volume(volume_history))
+    optimal_investment_dates = get_optimal_investment(price_history)
+    highest_volume = get_highest_volume(volume_history)
+
+    print("Longest bearish trend:", longest_bear[0])
+    print("Highest volume:",highest_volume[0], "on", highest_volume[1].strftime("%d.%m.%Y"))
+    if(optimal_investment_dates[0] == 0):
+        print("Optimal investment dates: do not invest in this period")
+    else:
+        print("Optimal investment dates: buy on",optimal_investment_dates[0].strftime("%d.%m.%Y"),"and sell on", optimal_investment_dates[1].strftime("%d.%m.%Y"))
 
 def get_highest_volume(volume_history):
     highest_volume = 0
@@ -28,9 +40,35 @@ def get_highest_volume(volume_history):
     return([highest_volume, datetime.fromtimestamp(highest_volume_timestamp/1000)])
 
 def get_optimal_investment(price_history):
-    
-    for timestamp in price_history:
-        continue
+    sorted_history = sorted(price_history, key=price_history.get)
+    largest_profit = 0
+    largest_profit_dates = [0,0]
+    complete = False
+    current_end_price = 0
+    current_start_price = 0
+    current_time = 0
+    current_iteration = 0
+    # Loop from largest price down
+    for current_end_time in reversed(sorted_history):
+        current_end_price = price_history[current_end_time]
+        if(current_end_price - price_history[sorted_history[0]] < largest_profit):
+            # Not possible to find better deal, break
+            break
+        # Loop from smallest price up
+        for current_start_time in sorted_history:
+            current_start_price = price_history[current_start_time]
+
+            if(current_end_price - current_start_price > largest_profit):
+                if(current_end_time > current_start_time):
+                    # Found start price that is before end price, no reason to continue with current end price
+                    largest_profit = current_end_price - current_start_price
+                    largest_profit_dates = [datetime.fromtimestamp(current_start_time/1000), datetime.fromtimestamp(current_end_time/1000)]
+                    break
+            else:
+                #Maximum profit is smaller that largest found profit, no reason to continue
+                break
+    return(largest_profit_dates)
+                
 
 def get_longest_bear(price_history):
     previous_price = 0
@@ -55,8 +93,8 @@ def get_longest_bear(price_history):
 def parse_data_history(data, start_date, end_date, data_type):
     datapoints = {}
     previous_value = data[data_type][0]
-    expected_timestamp = int(date_to_timestamp(start_date)*1000)
-    end_timestamp = int(date_to_timestamp(end_date)*1000)
+    expected_timestamp = int(datetime.timestamp(start_date)*1000)
+    end_timestamp = int(datetime.timestamp(end_date)*1000)
     # Parse response to inlcude only values closest to midnight utc
     for k in data[data_type]:
         # Timestamp is correct
@@ -76,15 +114,11 @@ def parse_data_history(data, start_date, end_date, data_type):
         previous_value = k
     return datapoints
 
-def date_to_timestamp(date):
-    dt = date.split("/")
-    dt = datetime(int(dt[2]),int(dt[1]),int(dt[0]))
-    timestamp = dt.replace(tzinfo=timezone.utc).timestamp()
-    return timestamp
+
 
 def get_price_history(start_date, end_date, coin):
     # 3600 added to end date in order to make sure end date midnight is included
-    with urlopen("https://api.coingecko.com/api/v3/coins/" + coin + "/market_chart/range?vs_currency=eur&from=" + str(date_to_timestamp(start_date) - 3600) + "&to=" + str(date_to_timestamp(end_date) + 3600)) as response:
+    with urlopen("https://api.coingecko.com/api/v3/coins/" + coin + "/market_chart/range?vs_currency=eur&from=" + str(datetime.timestamp(start_date) - 3600) + "&to=" + str(datetime.timestamp(end_date) + 3600)) as response:
         response_content = response.read()
     response_content.decode('utf-8')
     json_response = json.loads(response_content)
