@@ -8,9 +8,9 @@ from datetime import datetime
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("start_date", help="Start date in format DD.MM.YY",
+    parser.add_argument("start_date", help="Start date in format DD.MM.YYYY",
                         type=lambda s: datetime.strptime(s, '%d.%m.%Y'))
-    parser.add_argument("end_date", help="End date in format DD.MM.YY",
+    parser.add_argument("end_date", help="End date in format DD.MM.YYYY",
                         type=lambda s: datetime.strptime(s, '%d.%m.%Y'))
     args = parser.parse_args()
 
